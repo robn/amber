@@ -11,4 +11,4 @@ if test -z "`automake --version 2>&1|head -n 1|egrep '1.[89]'`"; then
 fi
 
 # Fire up autotools
-libtoolize --force && aclocal && autoheader && automake --include-deps --add-missing && autoconf 
+libtoolize --force --copy && aclocal && autoheader && automake --include-deps --add-missing --copy && autoconf 
