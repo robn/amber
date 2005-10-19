@@ -22,12 +22,15 @@ static JSBool _exec_fork(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 }
 
 static JSBool _exec_waitpid(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    return JS_FALSE;
 }
 
 static JSBool _exec_exec(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    return JS_FALSE;
 }
 
 static JSBool _exec_system(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    return JS_FALSE;
 }
 
 static JSFunctionSpec exec_functions[] = {
