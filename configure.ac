@@ -48,10 +48,18 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
 
 dnl
+dnl type checks
+dnl
+AC_C_CONST
+AC_TYPE_PID_T
+
+
+dnl
 dnl function checks
 dnl
 AC_FUNC_REALLOC
 AC_FUNC_STAT
+AC_FUNC_FORK
 AC_CHECK_FUNCS([strerror])
 
 
