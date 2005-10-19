@@ -149,6 +149,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 #ifdef HAVE_DLFCN_H
     void *dl;
     JSBool (*init)(JSContext *cx, JSObject *amber);
+    char *err;
 #endif
 
     if(argc == 0) {
@@ -188,13 +189,19 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
         thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".so")));
         if(stat(thing, &st) == 0) {
             dl = dlopen(thing, RTLD_LOCAL | RTLD_NOW);
-            init = dlsym(dl, JS_GetStringBytes(str));
-            if(init != NULL) {
-                *rval = init(cx, amber);
-                return JS_TRUE;
+            if((err = dlerror()) != NULL) {
+                JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Couldn't open shared object '%s': %s", thing, err), 0)));
+                return JS_FALSE;
             }
 
-            return JS_FALSE;
+            init = dlsym(dl, JS_GetStringBytes(str));
+            if((err = dlerror()) != NULL) {
+                JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Couldn't get initialiser for shared object '%s': %s", thing, err), 0)));
+                return JS_FALSE;
+            }
+
+            *rval = init(cx, amber);
+            return *rval;
         }
 #endif
     }
