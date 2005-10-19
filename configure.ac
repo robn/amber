@@ -9,7 +9,7 @@ dnl
 AC_PREREQ(2.59)
 
 dnl startup
-AC_INIT(amber, 0.01, rob@cataclysm.cx)
+AC_INIT(amber, 0.00, rob@cataclysm.cx)
 AM_INIT_AUTOMAKE
 
 dnl copyright
