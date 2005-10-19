@@ -1,3 +1,4 @@
+pkglib_SCRIPTS =
 pkglib_LTLIBRARIES = Exec.la
 
 Exec_la_SOURCES = Exec.c
