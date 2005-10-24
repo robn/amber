@@ -1,1 +1,1 @@
-SUBDIRS = js amber modules
+SUBDIRS = amber modules
