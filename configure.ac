@@ -41,14 +41,6 @@ AC_PROG_LIBTOOL
 
 
 dnl
-dnl host checks
-dnl
-
-dnl eventually in here we'll do some host type checking and set this accordingly
-CFLAGS="-DXP_UNIX $CFLAGS"
-
-
-dnl
 dnl header checks
 dnl
 AC_HEADER_STDC
@@ -75,12 +67,47 @@ dnl
 dnl externals
 dnl
 
+dnl spidermonkey has many homes
+CPPFLAGS="-DXP_UNIX $CPPFLAGS"
+AC_CHECK_HEADER(jsapi.h)
+if test "x-$ac_cv_header_jsapi_h" != "x-yes" ; then
+    for incpath in /usr/include/js /usr/local/include/js /usr/include/smjs ; do
+        if test "x-$ac_cv_header_jsapi_h" != "x-yes" ; then
+            AC_MSG_CHECKING([for jsapi.h in $incpath])
+            save_cppflags="$CPPFLAGS"
+            CPPFLAGS="-I$incpath $CPPFLAGS"
+            AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <jsapi.h>]])],
+                              [AC_MSG_RESULT(yes)
+                               AC_DEFINE(HAVE_JSAPI_H,,[Define if you have jsapi.h])
+                               ac_cv_header_jsapi_h=yes],
+                              [AC_MSG_RESULT(no)
+                               CPPFLAGS="$save_cppflags"])
+        fi
+    done
+fi
+if test "x-$ac_cv_header_jsapi_h" = "x-yes" ; then
+    for lib in js smjs ; do
+        if test "x-have_libjs" != "x-yes" ; then
+            AC_MSG_CHECKING([for JS_InitStandardClasses in -l$lib])
+            save_libs="$LIBS"
+            LIBS="-l$lib $LIBS"
+            AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <jsapi.h>]],
+                                            [[JS_InitStandardClasses(0,0)]])],
+                           [AC_MSG_RESULT(yes)
+                            have_libjs=yes],
+                           [AC_MSG_RESULT(no)
+                            LIBS="$save_libs"])
+        fi
+    done
+fi
+if test "x-$have_libjs" != "x-yes" ; then
+    AC_MSG_ERROR([SpiderMonkey engine not found])
+fi
+
 
 dnl
 dnl finishing up
 dnl
 AC_OUTPUT(Makefile \
-          js/Makefile \
-          js/src/Makefile \
           amber/Makefile \
           modules/Makefile)
