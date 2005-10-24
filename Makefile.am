@@ -1,3 +1,1 @@
-AM_CFLAGS = -DXP_UNIX
-
-SUBDIRS = amber modules
+SUBDIRS = js amber modules

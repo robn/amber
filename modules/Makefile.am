@@ -1,3 +1,5 @@
+INCLUDES = -I"$(top_builddir)/js/src"
+
 pkglib_SCRIPTS =
 pkglib_LTLIBRARIES = environment.la Exec.la
 
