@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -31,9 +32,12 @@
 #include <dlfcn.h>
 #endif
 
+#define JS_THREADSAFE 1
+
 #include <jsapi.h>
 #include <jsprf.h>
 #include <jsstddef.h>
+#include <jsinterp.h>
 
 static char *amber_search_path[] = {
     "/usr/local/lib/amber",
@@ -48,6 +52,54 @@ static char *amber_search_path[] = {
 #define AMBER_EXIT_RUN      (-131)
 
 static int amber_exit_code = AMBER_EXIT_OK;
+
+static JSClass amber_exception_class;
+
+static JSBool amber_exception_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    return amber_exception_class.construct(cx, obj, argc, argv, rval);
+}
+
+static void amber_exception_init(JSContext *cx, JSObject *amber) {
+    JSObject *proto, *class;
+    jsval fval, pval;
+
+    JS_GetProperty(cx, amber, "Error", &fval);
+    JS_CallFunctionValue(cx, amber, fval, 0, NULL, &pval);
+    proto = JSVAL_TO_OBJECT(pval);
+
+    memcpy(&amber_exception_class, JS_GetClass(cx, proto), sizeof(JSClass));
+
+    amber_exception_class.name = "AmberError";
+
+    class = JS_InitClass(cx, amber, proto, &amber_exception_class, amber_exception_constructor, 3, NULL, NULL, NULL, NULL);
+    JS_SetPrivate(cx, class, NULL);
+
+    JS_DefineProperty(cx, class, "name", STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "AmberError")), NULL, NULL, JSPROP_ENUMERATE);
+}
+
+static void amber_throw_exception(JSContext *cx, char *format, ...) {
+    va_list ap;
+    JSObject *amber;
+    char *text;
+    jsval argv[1], fval, eval;
+
+    va_start(ap, format);
+    text = JS_vsmprintf(format, ap);
+    va_end(ap);
+
+    argv[0] = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, text));
+
+    JS_free(cx, text);
+
+    amber = JS_GetGlobalObject(cx);
+
+    /* !!! need to add filename/linenumber here too */
+
+    JS_GetProperty(cx, amber, "AmberError", &fval);
+    JS_CallFunctionValue(cx, amber, fval, 1, argv, &eval);
+
+    JS_SetPendingException(cx, OBJECT_TO_JSVAL(eval));
+}
 
 static int amber_load_script(char *filename, char **script, int *scriptlen) {
     FILE *f;
@@ -99,7 +151,7 @@ static JSBool amber_print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     for(i = 0; i < argc; i++) {
         if((str = JS_ValueToString(cx, argv[i])) == NULL ||
            (thing = JS_GetStringBytes(str)) == NULL) {
-            JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "Internal error: Couldn't convert JSString to char *")));
+            amber_throw_exception(cx, "Couldn't convert JSString to char *");
             return JS_FALSE;
         }
 
@@ -118,7 +170,7 @@ JSBool amber_load_run_script(JSContext *cx, JSObject *amber, char *thing, jsval 
     JSBool ret;
 
     if(amber_load_script(thing, &script, &scriptlen) < 0) {
-        JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Unable to load '%s': %s", thing, strerror(errno)), 0)));
+        amber_throw_exception(cx, "Unable to load '%s': %s", thing, strerror(errno));
         return JS_FALSE;
     }
     if(scriptlen == 0) {
@@ -153,7 +205,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 #endif
 
     if(argc == 0) {
-        JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "No file or module specified")));
+        amber_throw_exception(cx, "No file or module specified");
         return JS_FALSE;
     }
 
@@ -161,7 +213,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 
     if((str = JS_ValueToString(cx, argv[0])) == NULL ||
        (thing = JS_GetStringBytes(str)) == NULL) {
-        JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "Internal error: Couldn't convert JSString to char *")));
+        amber_throw_exception(cx, "Couldn't convert JSString to char *");
         return JS_FALSE;
     }
 
@@ -170,7 +222,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 
     JS_GetProperty(cx, JSVAL_TO_OBJECT(argv[-2]), "searchPath", &result);
     if(JSVAL_IS_VOID(result)) {
-        JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "Module search path array not defined")));
+        amber_throw_exception(cx, "Module search path array not defined");
         return JS_FALSE;
     }
     search_path = JSVAL_TO_OBJECT(result);
@@ -190,13 +242,13 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
         if(stat(thing, &st) == 0) {
             dl = dlopen(thing, RTLD_LOCAL | RTLD_NOW);
             if((err = dlerror()) != NULL) {
-                JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Couldn't open shared object '%s': %s", thing, err), 0)));
+                amber_throw_exception(cx, "Couldn't open shared object '%s': %s", thing, err);
                 return JS_FALSE;
             }
 
             init = dlsym(dl, JS_GetStringBytes(str));
             if((err = dlerror()) != NULL) {
-                JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Couldn't get initialiser for shared object '%s': %s", thing, err), 0)));
+                amber_throw_exception(cx, "Couldn't get initialiser for shared object '%s': %s", thing, err);
                 return JS_FALSE;
             }
 
@@ -206,7 +258,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 #endif
     }
 
-    JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Can't find a candidate for module '%s'", JS_GetStringBytes(str)), 0)));
+    amber_throw_exception(cx, "Can't find a candidate for module '%s'", JS_GetStringBytes(str));
     return JS_FALSE;
 }
 
@@ -360,6 +412,8 @@ int main(int argc, char **argv) {
     if(JS_GetProperty(cx, core, "load", &rval) == JS_FALSE ||
        JS_DefineProperty(cx, JSVAL_TO_OBJECT(rval), "searchPath", OBJECT_TO_JSVAL(obj), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT) == JS_FALSE)
         { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
+
+    amber_exception_init(cx, amber);
 
     if(JS_EvaluateScript(cx, amber, script, scriptlen, pretty, 1, &rval) == JS_FALSE)
         amber_exit_code = AMBER_EXIT_RUN;
