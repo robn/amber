@@ -103,7 +103,8 @@ static void amber_throw_exception(JSContext *cx, char *format, ...) {
 
 static int amber_load_script(char *filename, char **script, int *scriptlen) {
     FILE *f;
-    int len, pos;
+    int first = 1, len, pos;
+    int c;
 
     *scriptlen = 0;
 
@@ -118,8 +119,10 @@ static int amber_load_script(char *filename, char **script, int *scriptlen) {
 
     *script = NULL; len = pos = 0;
     while(!feof(f)) {
-        *script = (char *) realloc(*script, sizeof(char) * (len + 1024));
-        len += 1024;
+        if(len < pos + 1024) {
+            *script = (char *) realloc(*script, sizeof(char) * (len + 1024));
+            len += 1024;
+        }
         
         pos += fread(&((*script)[pos]), sizeof(char), 1024, f);
         if(ferror(f)) {
@@ -127,6 +130,20 @@ static int amber_load_script(char *filename, char **script, int *scriptlen) {
             free(*script);
             fclose(f);
             return -1;
+        }
+
+        if(first && pos >= 2) {
+            if((*script)[0] == '#' && (*script)[1] == '!') {
+                for(c = 2; c < pos && (*script)[c] != '\n' && (*script)[c] != '\r'; c++);
+                if(c == pos)
+                    continue;
+
+                pos = pos - c;
+                memmove((*script), &((*script)[c]), pos);
+                (*script)[pos] = '\0';
+
+                first = 0;
+            }
         }
     }
 
