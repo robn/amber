@@ -297,16 +297,16 @@ static JSBool amber_exit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 }
 
 static JSFunctionSpec amber_functions[] = {
-    { "print",  amber_print, 0, JSPROP_ENUMERATE },
-    { "load",   amber_load,  1, JSPROP_ENUMERATE },
-    { "exit",   amber_exit,  0, JSPROP_ENUMERATE },
+    { "print",  amber_print, 0, 0 },
+    { "load",   amber_load,  1, 0 },
+    { "exit",   amber_exit,  0, 0 },
     { NULL }
 };
 
 static JSFunctionSpec amber_core_functions[] = {
-    { "print",  amber_print, 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT },
-    { "load",   amber_load,  1, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT },
-    { "exit",   amber_exit,  0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT },
+    { "print",  amber_print, 0, JSPROP_READONLY | JSPROP_PERMANENT },
+    { "load",   amber_load,  1, JSPROP_READONLY | JSPROP_PERMANENT },
+    { "exit",   amber_exit,  0, JSPROP_READONLY | JSPROP_PERMANENT },
     { NULL }
 };
 
