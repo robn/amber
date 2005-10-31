@@ -93,10 +93,30 @@ static JSBool file_read(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, j
     return JS_TRUE;
 }
 
+static JSBool file_write(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    FILE *f;
+    char *buf;
+    int len;
+
+    if((f = JS_GetPrivate(cx, obj)) == NULL)
+        return JS_TRUE;
+
+    if(argc == 0)
+        return JS_TRUE;
+
+    buf = JS_GetStringBytes(JSVAL_TO_STRING(argv[0]));
+    len = JS_GetStringLength(JSVAL_TO_STRING(argv[0]));
+
+    fwrite(buf, sizeof(char), len, f);
+
+    return JS_TRUE;
+}
+
 static JSFunctionSpec file_methods[] = {
     { "open",   file_open,  2, 0, 0 },
     { "close",  file_close, 0, 0, 0 },
     { "read",   file_read,  1, 0, 0 },
+    { "write",  file_write, 1, 0, 0 },
     { NULL }
 };
 
