@@ -68,7 +68,7 @@ static JSBool file_read(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, j
         return JS_TRUE;
 
     buf = NULL; len = pos = 0;
-    while(!feof(f) && want > 0 && pos < want) {
+    while(!feof(f) && (want < 0 || pos < want)) {
         if(len < pos + 1024) {
             buf = (char *) JS_realloc(cx, buf, sizeof(char) * (len + 1024));
             len += 1024;
