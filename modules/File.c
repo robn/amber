@@ -96,7 +96,17 @@ static JSBool file_read(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, j
 static JSFunctionSpec file_methods[] = {
     { "open",   file_open,  2, 0, 0 },
     { "close",  file_close, 0, 0, 0 },
-    { "read",   file_read,  1, 0, 0 }
+    { "read",   file_read,  1, 0, 0 },
+    { NULL }
+};
+
+enum file_tinyid {
+    FILE_EOF
+};
+
+static JSPropertySpec file_properties[] = {
+    { "eof",    FILE_EOF,   JSPROP_ENUMERATE | JSPROP_READONLY },
+    { NULL }
 };
 
 static JSBool file_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
@@ -106,6 +116,24 @@ static JSBool file_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *
     }
 
     file_open(cx, obj, argc, argv, rval);
+
+    return JS_TRUE;
+}
+
+static JSBool file_get_property(JSContext *cx, JSObject *obj, jsval id, jsval *vp) {
+    FILE *f;
+
+    if((f = JS_GetPrivate(cx, obj)) == NULL)
+        return JS_TRUE;
+
+    switch(JSVAL_TO_INT(id)) {
+        case FILE_EOF:
+            if(feof(f))
+                *vp = BOOLEAN_TO_JSVAL(JS_TRUE);
+            else
+                *vp = BOOLEAN_TO_JSVAL(JS_FALSE);
+            break;
+    }
 
     return JS_TRUE;
 }
@@ -121,7 +149,7 @@ static void file_finalize(JSContext *cx, JSObject *obj) {
 
 static JSClass file_class = {
     "File", JSCLASS_HAS_PRIVATE,
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+    JS_PropertyStub, JS_PropertyStub, file_get_property, JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, file_finalize
 };
 
@@ -130,7 +158,7 @@ JSBool File(JSContext *cx, JSObject *amber) {
 
     file = JS_InitClass(cx, amber, NULL, &file_class,
                         file_constructor, 2,
-                        NULL, file_methods,
+                        file_properties, file_methods,
                         NULL, NULL);
 
     return JS_TRUE;
