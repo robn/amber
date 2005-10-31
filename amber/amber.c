@@ -340,8 +340,13 @@ int main(int argc, char **argv) {
     JSObject *amber, *core, *obj;
     jsval rval;
 
-    while((optchar = getopt(argc, argv, "+h?")) >= 0) {
+    while((optchar = getopt(argc, argv, "+vh?")) >= 0) {
         switch(optchar) {
+            case 'v':
+                printf(" amber version: " VERSION "\n"
+                       "engine version: %s\n", JS_GetImplementationVersion());
+                return AMBER_EXIT_ARGS;
+
             case 'h': case '?': default:
                 fputs(
                     "amber - javascript script host\n"
