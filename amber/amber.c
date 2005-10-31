@@ -77,7 +77,7 @@ static void amber_exception_init(JSContext *cx, JSObject *amber) {
     JS_DefineProperty(cx, class, "name", STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "AmberError")), NULL, NULL, JSPROP_ENUMERATE);
 }
 
-static void amber_throw_exception(JSContext *cx, char *format, ...) {
+JSBool amber_throw_exception(JSContext *cx, char *format, ...) {
     va_list ap;
     JSObject *amber;
     char *text;
@@ -99,6 +99,8 @@ static void amber_throw_exception(JSContext *cx, char *format, ...) {
     JS_CallFunctionValue(cx, amber, fval, 1, argv, &eval);
 
     JS_SetPendingException(cx, OBJECT_TO_JSVAL(eval));
+
+    return JS_FALSE;
 }
 
 static int amber_load_script(char *filename, char **script, int *scriptlen) {
@@ -257,7 +259,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 #ifdef HAVE_DLFCN_H
         thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".so")));
         if(stat(thing, &st) == 0) {
-            dl = dlopen(thing, RTLD_LOCAL | RTLD_NOW);
+            dl = dlopen(thing, RTLD_NOW | RTLD_LOCAL);
             if((err = dlerror()) != NULL) {
                 amber_throw_exception(cx, "Couldn't open shared object '%s': %s", thing, err);
                 return JS_FALSE;

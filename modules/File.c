@@ -1,9 +1,11 @@
+#include "amber/amber.h"
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 #include <jsapi.h>
-#include <jsprf.h>
-#include <jsstddef.h>
 
 static JSBool file_open(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
     JSString *str;
@@ -27,8 +29,10 @@ static JSBool file_open(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, j
         fclose(f);
         JS_SetPrivate(cx, obj, NULL);
     }
-    
+
     f = fopen(name, mode);
+    ASSERT_THROW(f == NULL, "couldn't open '%s' with mode '%s': %s", name, mode, strerror(errno));
+    
     JS_SetPrivate(cx, obj, f);
     
     return JS_TRUE;
@@ -135,9 +139,7 @@ static JSBool file_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *
         return JS_TRUE;
     }
 
-    file_open(cx, obj, argc, argv, rval);
-
-    return JS_TRUE;
+    return file_open(cx, obj, argc, argv, rval);
 }
 
 static JSBool file_get_property(JSContext *cx, JSObject *obj, jsval id, jsval *vp) {
