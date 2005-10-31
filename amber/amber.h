@@ -30,4 +30,7 @@ extern JSBool amber_throw_exception(JSContext *cx, char *format, ...);
     if(expr) \
         return amber_throw_exception(cx, __VA_ARGS__)
 
+#define THROW(...) \
+    return amber_throw_exception(cx, __VA_ARGS__)
+
 #endif

@@ -61,8 +61,8 @@ static JSBool file_read(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, j
     if(argc == 0)
         want = -1;
 
-    else if(JS_ValueToInt32(cx, argv[0], &want) == JS_FALSE)
-        return JS_TRUE;
+    else ASSERT_THROW(JS_ValueToInt32(cx, argv[0], &want) == JS_FALSE,
+                      "couldn't convert argument to an integer");
 
     if(want == 0)
         return JS_TRUE;
@@ -78,6 +78,11 @@ static JSBool file_read(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, j
             pos += fread(&(buf[pos]), sizeof(char), want - pos, f);
         else
             pos += fread(&(buf[pos]), sizeof(char), 1024, f);
+
+        if(ferror(f)) {
+            JS_free(cx, buf);
+            THROW("read error");
+        }
     }
 
     if(pos == 0) {
@@ -112,6 +117,7 @@ static JSBool file_write(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
     len = JS_GetStringLength(JSVAL_TO_STRING(argv[0]));
 
     fwrite(buf, sizeof(char), len, f);
+    ASSERT_THROW(ferror(f), "write error");
 
     return JS_TRUE;
 }
