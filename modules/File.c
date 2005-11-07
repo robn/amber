@@ -122,11 +122,81 @@ static JSBool file_write(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
     return JS_TRUE;
 }
 
+static JSBool file_print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    FILE *f;
+    uintN i;
+    JSString *str;
+    char *thing;
+
+    if((f = JS_GetPrivate(cx, obj)) == NULL)
+        return JS_TRUE;
+
+    if(argc == 0) {
+        fputs("\n", f);
+        ASSERT_THROW(ferror(f), "write error");
+        return JS_TRUE;
+    }
+
+    for(i = 0; i < argc; i++) {
+        if((str = JS_ValueToString(cx, argv[i])) == NULL ||
+           (thing = JS_GetStringBytes(str)) == NULL) {
+            THROW("couldn't convert argument to char *");
+        }
+
+        fprintf(f, "%s%s", i > 0 ? " " : "", thing);
+        ASSERT_THROW(ferror(f), "write error");
+    }
+
+    fputc('\n', f);
+    ASSERT_THROW(ferror(f), "write error");
+
+    return JS_TRUE;
+}
+
+static JSBool file_readline(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    FILE *f;
+    char buf[256], *c;
+    JSString *str = NULL;
+    int done;
+
+    if((f = JS_GetPrivate(cx, obj)) == NULL)
+        return JS_TRUE;
+
+    done = 0;
+    buf[254] = '\0';
+    do {
+        fgets(buf, 256, f);
+        ASSERT_THROW(ferror(f), "read error");
+
+        c = strchr(buf, '\0'); c--;
+        if(*c == '\n' || *c == '\r') {
+            done = 1;
+            *c = '\0';
+        }
+        else if(feof(f))
+            done = 1;
+
+        if(str == NULL)
+            str = JS_NewStringCopyZ(cx, buf);
+        else
+            str = JS_ConcatStrings(cx, str, JS_NewStringCopyZ(cx, buf));
+    } while(!done);
+
+    if(str != NULL)
+        *rval = STRING_TO_JSVAL(str);
+    else
+        *rval = JSVAL_VOID;
+    
+    return JS_TRUE;
+}
+
 static JSFunctionSpec file_methods[] = {
-    { "open",   file_open,  2, 0, 0 },
-    { "close",  file_close, 0, 0, 0 },
-    { "read",   file_read,  1, 0, 0 },
-    { "write",  file_write, 1, 0, 0 },
+    { "open",       file_open,      2, 0 },
+    { "close",      file_close,     0, 0 },
+    { "read",       file_read,      1, 0 },
+    { "write",      file_write,     1, 0 },
+    { "print",      file_print,     0, 0 },
+    { "readline",   file_readline,  0, 0 },
     { NULL }
 };
 
