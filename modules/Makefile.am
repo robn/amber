@@ -1,5 +1,5 @@
 pkglib_SCRIPTS =
-pkglib_LTLIBRARIES = environment.la Exec.la File.la Thread.la
+pkglib_LTLIBRARIES = environment.la Exec.la File.la Thread.la Mutex.la
 
 environment_la_SOURCES = environment.c
 environment_la_LDFLAGS = -module -avoid-version -rpath '$(pkglibdir)'
@@ -12,3 +12,6 @@ File_la_LDFLAGS = -module -avoid-version -rpath '$(pkglibdir)'
 
 Thread_la_SOURCES = Thread.c
 Thread_la_LDFLAGS = -module -avoid-version -rpath '$(pkglibdir)' -lpthread
+
+Mutex_la_SOURCES = Mutex.c
+Mutex_la_LDFLAGS = -module -avoid-version -rpath '$(pkglibdir)' -lpthread
