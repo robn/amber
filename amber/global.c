@@ -26,11 +26,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#ifdef HAVE_DLFCN_H
-#include <dlfcn.h>
-#endif
-
-
 static char *amber_search_path[] = {
     "/usr/local/lib/amber",
     "/usr/local/share/amber",
