@@ -35,10 +35,6 @@
 #include "amber.h"
 #include "internal.h"
 
-#include <jsprf.h>
-#include <jsstddef.h>
-#include <jsinterp.h>
-
 static char *amber_search_path[] = {
     "/usr/local/lib/amber",
     "/usr/local/share/amber",
