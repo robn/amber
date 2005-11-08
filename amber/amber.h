@@ -21,16 +21,15 @@
 #define AMBER_H 1
 
 #define JS_THREADSAFE 1
-
 #include <jsapi.h>
 
-extern JSBool amber_throw_exception(JSContext *cx, char *format, ...);
+extern JSBool amber_exception_throw(JSContext *cx, char *format, ...);
 
 #define ASSERT_THROW(expr, ...) \
     if(expr) \
-        return amber_throw_exception(cx, __VA_ARGS__)
+        return amber_exception_throw(cx, __VA_ARGS__)
 
 #define THROW(...) \
-    return amber_throw_exception(cx, __VA_ARGS__)
+    return amber_exception_throw(cx, __VA_ARGS__)
 
 #endif

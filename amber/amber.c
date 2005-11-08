@@ -32,9 +32,9 @@
 #include <dlfcn.h>
 #endif
 
-#define JS_THREADSAFE 1
+#include "amber.h"
+#include "internal.h"
 
-#include <jsapi.h>
 #include <jsprf.h>
 #include <jsstddef.h>
 #include <jsinterp.h>
@@ -52,56 +52,6 @@ static char *amber_search_path[] = {
 #define AMBER_EXIT_RUN      (-131)
 
 static int amber_exit_code = AMBER_EXIT_OK;
-
-static JSClass amber_exception_class;
-
-static JSBool amber_exception_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
-    return amber_exception_class.construct(cx, obj, argc, argv, rval);
-}
-
-static void amber_exception_init(JSContext *cx, JSObject *amber) {
-    JSObject *proto, *class;
-    jsval fval, pval;
-
-    JS_GetProperty(cx, amber, "Error", &fval);
-    JS_CallFunctionValue(cx, amber, fval, 0, NULL, &pval);
-    proto = JSVAL_TO_OBJECT(pval);
-
-    memcpy(&amber_exception_class, JS_GetClass(cx, proto), sizeof(JSClass));
-
-    amber_exception_class.name = "AmberError";
-
-    class = JS_InitClass(cx, amber, proto, &amber_exception_class, amber_exception_constructor, 3, NULL, NULL, NULL, NULL);
-    JS_SetPrivate(cx, class, NULL);
-
-    JS_DefineProperty(cx, class, "name", STRING_TO_JSVAL(JS_NewStringCopyZ(cx, "AmberError")), NULL, NULL, JSPROP_ENUMERATE);
-}
-
-JSBool amber_throw_exception(JSContext *cx, char *format, ...) {
-    va_list ap;
-    JSObject *amber;
-    char *text;
-    jsval argv[1], fval, eval;
-
-    va_start(ap, format);
-    text = JS_vsmprintf(format, ap);
-    va_end(ap);
-
-    argv[0] = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, text));
-
-    JS_free(cx, text);
-
-    amber = JS_GetGlobalObject(cx);
-
-    /* !!! need to add filename/linenumber here too */
-
-    JS_GetProperty(cx, amber, "AmberError", &fval);
-    JS_CallFunctionValue(cx, amber, fval, 1, argv, &eval);
-
-    JS_SetPendingException(cx, OBJECT_TO_JSVAL(eval));
-
-    return JS_FALSE;
-}
 
 static int amber_load_script(char *filename, char **script, int *scriptlen) {
     FILE *f;
@@ -170,8 +120,7 @@ static JSBool amber_print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     for(i = 0; i < argc; i++) {
         if((str = JS_ValueToString(cx, argv[i])) == NULL ||
            (thing = JS_GetStringBytes(str)) == NULL) {
-            amber_throw_exception(cx, "Couldn't convert JSString to char *");
-            return JS_FALSE;
+            THROW("couldn't convert argument to char *");
         }
 
         printf("%s%s", i > 0 ? " " : "", thing);
@@ -189,7 +138,7 @@ JSBool amber_load_run_script(JSContext *cx, JSObject *amber, char *thing, jsval 
     JSBool ret;
 
     if(amber_load_script(thing, &script, &scriptlen) < 0) {
-        amber_throw_exception(cx, "Unable to load '%s': %s", thing, strerror(errno));
+        THROW("unable to load '%s': %s", thing, strerror(errno));
         return JS_FALSE;
     }
     if(scriptlen == 0) {
@@ -223,27 +172,20 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
     char *err;
 #endif
 
-    if(argc == 0) {
-        amber_throw_exception(cx, "No file or module specified");
-        return JS_FALSE;
-    }
+    ASSERT_THROW(argc == 0, "no file or module specified");
 
     amber = JS_GetGlobalObject(cx);
 
     if((str = JS_ValueToString(cx, argv[0])) == NULL ||
        (thing = JS_GetStringBytes(str)) == NULL) {
-        amber_throw_exception(cx, "Couldn't convert JSString to char *");
-        return JS_FALSE;
+        THROW("couldn't convert argument to char *");
     }
 
     if(stat(thing, &st) == 0)
         return amber_load_run_script(cx, amber, thing, rval);
 
     JS_GetProperty(cx, JSVAL_TO_OBJECT(argv[-2]), "searchPath", &result);
-    if(JSVAL_IS_VOID(result)) {
-        amber_throw_exception(cx, "Module search path array not defined");
-        return JS_FALSE;
-    }
+    ASSERT_THROW(JSVAL_IS_VOID(result), "module search path array not defined");
     search_path = JSVAL_TO_OBJECT(result);
 
     JS_GetArrayLength(cx, search_path, &len);
@@ -260,16 +202,10 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
         thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".so")));
         if(stat(thing, &st) == 0) {
             dl = dlopen(thing, RTLD_NOW | RTLD_LOCAL);
-            if((err = dlerror()) != NULL) {
-                amber_throw_exception(cx, "Couldn't open shared object '%s': %s", thing, err);
-                return JS_FALSE;
-            }
+            ASSERT_THROW((err = dlerror()) != NULL, "couldn't open shared object '%s': %s", thing, err);
 
             init = dlsym(dl, JS_GetStringBytes(str));
-            if((err = dlerror()) != NULL) {
-                amber_throw_exception(cx, "Couldn't get initialiser for shared object '%s': %s", thing, err);
-                return JS_FALSE;
-            }
+            ASSERT_THROW((err = dlerror()) != NULL, "couldn't get initialiser for shared object '%s': %s", thing, err);
 
             *rval = init(cx, amber);
             return *rval;
@@ -277,8 +213,7 @@ static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
 #endif
     }
 
-    amber_throw_exception(cx, "Can't find a candidate for module '%s'", JS_GetStringBytes(str));
-    return JS_FALSE;
+    THROW("can't find a candidate for module '%s'", JS_GetStringBytes(str));
 }
 
 static JSBool amber_exit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
@@ -298,10 +233,18 @@ static JSBool amber_exit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, 
     return JS_FALSE;
 }
 
+/*
+static JSBool amber_pause(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
+    sleep(1);
+    return JS_TRUE;
+}
+*/
+
 static JSFunctionSpec amber_functions[] = {
     { "print",  amber_print, 0, 0 },
     { "load",   amber_load,  1, 0 },
     { "exit",   amber_exit,  0, 0 },
+//    { "pause", amber_pause, 0, 0},
     { NULL }
 };
 
