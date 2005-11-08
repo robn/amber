@@ -1,9 +1,9 @@
 #include <stdlib.h>
+#include "amber/amber.h"
+
 #include <string.h>
 
 #include <jsapi.h>
-#include <jsprf.h>
-#include <jsstddef.h>
 
 static JSBool env_set_property(JSContext *cx, JSObject *obj, jsval id, jsval *vp) {
     JSString *idstr, *valstr;
@@ -19,10 +19,7 @@ static JSBool env_set_property(JSContext *cx, JSObject *obj, jsval id, jsval *vp
     value = JS_GetStringBytes(valstr);
 
     rv = setenv(key, value, 1);
-    if(rv < 0) {
-        JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewString(cx, JS_smprintf("Unable to set environment variable '%s'", key), 0)));
-        return JS_FALSE;
-    }
+    ASSERT_THROW(rv < 0, "unable to set environment variable '%s'", key);
 
     *vp = STRING_TO_JSVAL(valstr);
 
