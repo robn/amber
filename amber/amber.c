@@ -25,31 +25,13 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#ifdef HAVE_DLFCN_H
-#include <dlfcn.h>
-#endif
 
 #include "amber.h"
 #include "internal.h"
 
-static char *amber_search_path[] = {
-    "/usr/local/lib/amber",
-    "/usr/local/share/amber",
-    NULL
-};
-
-#define AMBER_EXIT_OK       (0)
-#define AMBER_EXIT_ARGS     (-128)
-#define AMBER_EXIT_SCRIPT   (-129)
-#define AMBER_EXIT_INIT     (-130)
-#define AMBER_EXIT_RUN      (-131)
-
 static int amber_exit_code = AMBER_EXIT_OK;
 
-static int amber_load_script(char *filename, char **script, int *scriptlen) {
+int amber_load_script(char *filename, char **script, int *scriptlen) {
     FILE *f;
     int first = 1, len, pos;
     int c;
@@ -103,38 +85,14 @@ static int amber_load_script(char *filename, char **script, int *scriptlen) {
     return 0;
 }
 
-static JSBool amber_print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
-    uintN i;
-    JSString *str;
-    char *thing;
-
-    if(argc == 0) {
-        fputs("\n", stdout);
-        return JS_TRUE;
-    }
-
-    for(i = 0; i < argc; i++) {
-        if((str = JS_ValueToString(cx, argv[i])) == NULL ||
-           (thing = JS_GetStringBytes(str)) == NULL) {
-            THROW("couldn't convert argument to char *");
-        }
-
-        printf("%s%s", i > 0 ? " " : "", thing);
-    }
-
-    fputc('\n', stdout);
-
-    return JS_TRUE;
-}
-
-JSBool amber_load_run_script(JSContext *cx, JSObject *amber, char *thing, jsval *rval) {
+JSBool amber_run_script(JSContext *cx, JSObject *amber, char *filename, jsval *rval) {
     char *script;
     int scriptlen;
     uint32 opts;
     JSBool ret;
 
-    if(amber_load_script(thing, &script, &scriptlen) < 0) {
-        THROW("unable to load '%s': %s", thing, strerror(errno));
+    if(amber_load_script(filename, &script, &scriptlen) < 0) {
+        THROW("unable to load '%s': %s", filename, strerror(errno));
         return JS_FALSE;
     }
     if(scriptlen == 0) {
@@ -145,118 +103,12 @@ JSBool amber_load_run_script(JSContext *cx, JSObject *amber, char *thing, jsval 
     opts = JS_GetOptions(cx);
     JS_SetOptions(cx, opts | JSOPTION_COMPILE_N_GO);
         
-    ret = JS_EvaluateScript(cx, amber, script, scriptlen, thing, 1, rval);
+    ret = JS_EvaluateScript(cx, amber, script, scriptlen, filename, 1, rval);
 
     JS_SetOptions(cx, opts);
 
     return ret;
 }
-
-static JSBool amber_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
-    JSString *str;
-    char *thing;
-    struct stat st;
-    JSObject *amber;
-    jsval result;
-    JSObject *search_path;
-    jsint i;
-    jsuint len;
-    JSString *full;
-#ifdef HAVE_DLFCN_H
-    void *dl;
-    JSBool (*init)(JSContext *cx, JSObject *amber);
-    char *err;
-#endif
-
-    ASSERT_THROW(argc == 0, "no file or module specified");
-
-    amber = JS_GetGlobalObject(cx);
-
-    if((str = JS_ValueToString(cx, argv[0])) == NULL ||
-       (thing = JS_GetStringBytes(str)) == NULL) {
-        THROW("couldn't convert argument to char *");
-    }
-
-    if(stat(thing, &st) == 0)
-        return amber_load_run_script(cx, amber, thing, rval);
-
-    JS_GetProperty(cx, JSVAL_TO_OBJECT(argv[-2]), "searchPath", &result);
-    ASSERT_THROW(JSVAL_IS_VOID(result), "module search path array not defined");
-    search_path = JSVAL_TO_OBJECT(result);
-
-    JS_GetArrayLength(cx, search_path, &len);
-
-    for(i = 0; i < len; i++) {
-        JS_GetElement(cx, search_path, i, &result);
-        full = JS_ConcatStrings(cx, JS_ConcatStrings(cx, JSVAL_TO_STRING(result), JS_NewStringCopyZ(cx, "/")), str);
-
-        thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".js")));
-        if(stat(thing, &st) == 0)
-            return amber_load_run_script(cx, amber, thing, rval);
-
-#ifdef HAVE_DLFCN_H
-        thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".so")));
-        if(stat(thing, &st) == 0) {
-            dl = dlopen(thing, RTLD_NOW | RTLD_LOCAL);
-            ASSERT_THROW((err = dlerror()) != NULL, "couldn't open shared object '%s': %s", thing, err);
-
-            init = dlsym(dl, JS_GetStringBytes(str));
-            ASSERT_THROW((err = dlerror()) != NULL, "couldn't get initialiser for shared object '%s': %s", thing, err);
-
-            *rval = init(cx, amber);
-            return *rval;
-        }
-#endif
-    }
-
-    THROW("can't find a candidate for module '%s'", JS_GetStringBytes(str));
-}
-
-static JSBool amber_exit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
-    int code = AMBER_EXIT_OK;
-    JSRuntime *rt;
-
-    if(argc > 0)
-        code = JSVAL_TO_INT(argv[0]);
-
-    rt = JS_GetRuntime(cx);
-
-    JS_DestroyContext(cx);
-    JS_DestroyRuntime(rt);
-
-    exit(code);
-
-    return JS_FALSE;
-}
-
-/*
-static JSBool amber_pause(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
-    sleep(1);
-    return JS_TRUE;
-}
-*/
-
-static JSFunctionSpec amber_functions[] = {
-    { "print",  amber_print, 0, 0 },
-    { "load",   amber_load,  1, 0 },
-    { "exit",   amber_exit,  0, 0 },
-//    { "pause", amber_pause, 0, 0},
-    { NULL }
-};
-
-static JSFunctionSpec amber_core_functions[] = {
-    { "print",  amber_print, 0, JSPROP_READONLY | JSPROP_PERMANENT },
-    { "load",   amber_load,  1, JSPROP_READONLY | JSPROP_PERMANENT },
-    { "exit",   amber_exit,  0, JSPROP_READONLY | JSPROP_PERMANENT },
-    { NULL }
-};
-
-static JSClass amber_class = {
-    "Amber", 0,
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub
-};
-
 
 static void amber_error_reporter(JSContext *cx, const char *message, JSErrorReport *report) {
     fputs(message, stderr);
@@ -314,35 +166,17 @@ int main(int argc, char **argv) {
 
     optind++;
 
-    /* start me up */
     if((rt = JS_NewRuntime(8L * 1024L * 1024L)) == NULL ||
        (cx = JS_NewContext(rt, 8192)) == NULL)
         { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
 
     JS_SetErrorReporter(cx, amber_error_reporter);
 
-    /* the global object */
-    if((amber = JS_NewObject(cx, &amber_class, NULL, NULL)) == NULL ||
-
-       /* load all the builtin stuff into it */
-       JS_InitStandardClasses(cx, amber) == JS_FALSE ||
-
-       /* get our core functions online */
-       JS_DefineFunctions(cx, amber, amber_functions) == JS_FALSE ||
-
-       /* and the loopback so we can access ourselves directly */
-       JS_DefineProperty(cx, amber, "amber", OBJECT_TO_JSVAL(amber), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT) == JS_FALSE)
-        { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
-
-    /* core is a "mirror" of our builtins, but immutable */
-    if((core = JS_NewObject(cx, NULL, NULL, NULL)) == NULL ||
-
-       /* hook it up to the global object */
-       JS_DefineProperty(cx, amber, "core", OBJECT_TO_JSVAL(core), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT) == JS_FALSE ||
-
-       /* and add the functions to it */
-       JS_DefineFunctions(cx, core, amber_core_functions) == JS_FALSE)
-        { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
+    amber = amber_global_init(cx);
+    if(amber == NULL) {
+        amber_exit_code = AMBER_EXIT_INIT;
+        goto cleanup;
+    }
 
     /* arguments holds the command line arguments */
     if((obj = JS_NewArrayObject(cx, 0, NULL)) == NULL ||
@@ -356,26 +190,6 @@ int main(int argc, char **argv) {
         if(JS_DefineElement(cx, obj, i - optind, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, argv[i])), NULL, NULL, JSPROP_ENUMERATE) == JS_FALSE)
             { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
     
-    /* the load function has a search path initialised at compile time */
-    if(JS_GetProperty(cx, amber, "load", &rval) == JS_FALSE ||
-
-       /* make a new array */
-       (obj = JS_NewArrayObject(cx, 0, NULL)) == NULL ||
-
-       /* and attach it to the function */
-       JS_DefineProperty(cx, JSVAL_TO_OBJECT(rval), "searchPath", OBJECT_TO_JSVAL(obj), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT) == JS_FALSE)
-        { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
-
-    /* loop over the compiled in values and add them in */
-    for(i = 0; amber_search_path[i] != NULL; i++)
-        if(JS_DefineElement(cx, obj, i, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, amber_search_path[i])), NULL, NULL, JSPROP_ENUMERATE) == JS_FALSE)
-            { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
-
-    /* we also have to add this to core.load */
-    if(JS_GetProperty(cx, core, "load", &rval) == JS_FALSE ||
-       JS_DefineProperty(cx, JSVAL_TO_OBJECT(rval), "searchPath", OBJECT_TO_JSVAL(obj), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT) == JS_FALSE)
-        { amber_exit_code = AMBER_EXIT_INIT; goto cleanup; }
-
     amber_exception_init(cx, amber);
 
     if(JS_EvaluateScript(cx, amber, script, scriptlen, pretty, 1, &rval) == JS_FALSE)

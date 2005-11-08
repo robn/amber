@@ -1,4 +1,6 @@
 bin_PROGRAMS = amber
 
-amber_SOURCES = amber.c exception.c
+noinst_HEADERS = amber.h internal.h
+
+amber_SOURCES = amber.c exception.c global.c
 amber_LDFLAGS = -export-dynamic

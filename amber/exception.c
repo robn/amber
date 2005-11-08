@@ -22,8 +22,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-#define JS_THREADSAFE 1
-#include <jsapi.h>
+#include "amber.h"
 
 #include <jsprf.h>
 

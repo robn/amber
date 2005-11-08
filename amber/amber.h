@@ -23,6 +23,9 @@
 #define JS_THREADSAFE 1
 #include <jsapi.h>
 
+extern int amber_load_script(char *filename, char **script, int *scriptlen);
+extern JSBool amber_run_script(JSContext *cx, JSObject *amber, char *filename, jsval *rval);
+
 extern JSBool amber_exception_throw(JSContext *cx, char *format, ...);
 
 #define ASSERT_THROW(expr, ...) \
@@ -31,5 +34,11 @@ extern JSBool amber_exception_throw(JSContext *cx, char *format, ...);
 
 #define THROW(...) \
     return amber_exception_throw(cx, __VA_ARGS__)
+
+#define AMBER_EXIT_OK       (0)
+#define AMBER_EXIT_ARGS     (-128)
+#define AMBER_EXIT_SCRIPT   (-129)
+#define AMBER_EXIT_INIT     (-130)
+#define AMBER_EXIT_RUN      (-131)
 
 #endif
