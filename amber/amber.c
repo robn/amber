@@ -19,96 +19,15 @@
 
 #include "config.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <errno.h>
-
 #include "amber.h"
 #include "internal.h"
 
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+
 static int amber_exit_code = AMBER_EXIT_OK;
-
-int amber_load_script(char *filename, char **script, int *scriptlen) {
-    FILE *f;
-    int first = 1, len, pos;
-    int c;
-
-    *scriptlen = 0;
-
-    if(filename == NULL)
-        f = stdin;
-    
-    else {
-        f = fopen(filename, "r");
-        if(f == NULL)
-            return -1;
-    }
-
-    *script = NULL; len = pos = 0;
-    while(!feof(f)) {
-        if(len < pos + 1024) {
-            *script = (char *) realloc(*script, sizeof(char) * (len + 1024));
-            len += 1024;
-        }
-        
-        pos += fread(&((*script)[pos]), sizeof(char), 1024, f);
-        if(ferror(f)) {
-            errno = ferror(f);
-            free(*script);
-            fclose(f);
-            return -1;
-        }
-
-        if(first && pos >= 2) {
-            if((*script)[0] == '#' && (*script)[1] == '!') {
-                for(c = 2; c < pos && (*script)[c] != '\n' && (*script)[c] != '\r'; c++);
-                if(c == pos)
-                    continue;
-
-                pos = pos - c;
-                memmove((*script), &((*script)[c]), pos);
-                (*script)[pos] = '\0';
-
-                first = 0;
-            }
-        }
-    }
-
-    if(filename != NULL)
-        fclose(f);
-
-    *scriptlen = pos;
-
-    return 0;
-}
-
-JSBool amber_run_script(JSContext *cx, JSObject *amber, char *filename, jsval *rval) {
-    char *script;
-    int scriptlen;
-    uint32 opts;
-    JSBool ret;
-
-    if(amber_load_script(filename, &script, &scriptlen) < 0) {
-        THROW("unable to load '%s': %s", filename, strerror(errno));
-        return JS_FALSE;
-    }
-    if(scriptlen == 0) {
-        *rval = JS_TRUE;
-        return JS_TRUE;
-    }
-
-    opts = JS_GetOptions(cx);
-    JS_SetOptions(cx, opts | JSOPTION_COMPILE_N_GO);
-        
-    ret = JS_EvaluateScript(cx, amber, script, scriptlen, filename, 1, rval);
-
-    JS_SetOptions(cx, opts);
-
-    return ret;
-}
 
 static void amber_error_reporter(JSContext *cx, const char *message, JSErrorReport *report) {
     fputs(message, stderr);

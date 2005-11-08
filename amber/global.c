@@ -64,18 +64,10 @@ static JSBool amber_global_print(JSContext *cx, JSObject *obj, uintN argc, jsval
 static JSBool amber_global_load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {
     JSString *str;
     char *thing;
+    jsval result;
     struct stat st;
     JSObject *amber;
-    jsval result;
     JSObject *search_path;
-    jsint i;
-    jsuint len;
-    JSString *full;
-#ifdef HAVE_DLFCN_H
-    void *dl;
-    JSBool (*init)(JSContext *cx, JSObject *amber);
-    char *err;
-#endif
 
     ASSERT_THROW(argc == 0, "no file or module specified");
 
@@ -93,32 +85,7 @@ static JSBool amber_global_load(JSContext *cx, JSObject *obj, uintN argc, jsval 
     ASSERT_THROW(JSVAL_IS_VOID(result), "module search path array not defined");
     search_path = JSVAL_TO_OBJECT(result);
 
-    JS_GetArrayLength(cx, search_path, &len);
-
-    for(i = 0; i < len; i++) {
-        JS_GetElement(cx, search_path, i, &result);
-        full = JS_ConcatStrings(cx, JS_ConcatStrings(cx, JSVAL_TO_STRING(result), JS_NewStringCopyZ(cx, "/")), str);
-
-        thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".js")));
-        if(stat(thing, &st) == 0)
-            return amber_run_script(cx, amber, thing, rval);
-
-#ifdef HAVE_DLFCN_H
-        thing = JS_GetStringBytes(JS_ConcatStrings(cx, full, JS_NewStringCopyZ(cx, ".so")));
-        if(stat(thing, &st) == 0) {
-            dl = dlopen(thing, RTLD_NOW | RTLD_LOCAL);
-            ASSERT_THROW((err = dlerror()) != NULL, "couldn't open shared object '%s': %s", thing, err);
-
-            init = dlsym(dl, JS_GetStringBytes(str));
-            ASSERT_THROW((err = dlerror()) != NULL, "couldn't get initialiser for shared object '%s': %s", thing, err);
-
-            *rval = init(cx, amber);
-            return *rval;
-        }
-#endif
-    }
-
-    THROW("can't find a candidate for module '%s'", JS_GetStringBytes(str));
+    return amber_load_module(cx, amber, search_path, thing, rval);
 }
 
 static JSBool amber_global_exit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval) {

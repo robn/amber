@@ -25,6 +25,7 @@
 
 extern int amber_load_script(char *filename, char **script, int *scriptlen);
 extern JSBool amber_run_script(JSContext *cx, JSObject *amber, char *filename, jsval *rval);
+extern JSBool amber_load_module(JSContext *cx, JSObject *amber, JSObject *search_path, char *thing, jsval *rval);
 
 extern JSBool amber_exception_throw(JSContext *cx, char *format, ...);
 
