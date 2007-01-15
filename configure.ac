@@ -71,7 +71,7 @@ dnl spidermonkey has many homes
 CPPFLAGS="-DXP_UNIX $CPPFLAGS"
 AC_CHECK_HEADER(jsapi.h)
 if test "x-$ac_cv_header_jsapi_h" != "x-yes" ; then
-    for incpath in /usr/include/js /usr/local/include/js /usr/include/smjs ; do
+    for incpath in /usr/include/js /usr/local/include/js /usr/include/smjs /usr/include/mozjs; do
         if test "x-$ac_cv_header_jsapi_h" != "x-yes" ; then
             AC_MSG_CHECKING([for jsapi.h in $incpath])
             save_cppflags="$CPPFLAGS"
@@ -86,7 +86,7 @@ if test "x-$ac_cv_header_jsapi_h" != "x-yes" ; then
     done
 fi
 if test "x-$ac_cv_header_jsapi_h" = "x-yes" ; then
-    for lib in js smjs ; do
+    for lib in js smjs mozjs ; do
         if test "x-have_libjs" != "x-yes" ; then
             AC_MSG_CHECKING([for JS_InitStandardClasses in -l$lib])
             save_libs="$LIBS"
